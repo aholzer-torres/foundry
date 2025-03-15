@@ -3,7 +3,8 @@ In our home game we have a custom crit rule. We were eternally frustrated when w
 
 ## Custom Crit rule logic:
 1. Damage dice that are included in the crit are maxed and rolled again
-    e.g. you attack with a crossbow and critically hit. Normal crit damage is 2d8; custom crit damage is 1d8+8
+
+e.g. you attack with a crossbow and critically hit. Normal crit damage is 2d8; custom crit damage is 1d8+8
 
 ### Special sub-rule: Striking runes
 It was decided that extra damage from striking runes would not be maxed. That is considered bonus damage outside of the crit
@@ -22,6 +23,13 @@ I created this macro to give a new modal allowing the user to do what they need
 
 ## Prefill from spell
 TODO
+
+# Roling damage
+## Crit Roll (for simple crits)
+This rolls the dice pool using the pf2e dice roller, creating separate dice pools for the various forms of damage. It does not handle all cases correctly (looking at you alchemist's fire), but for simple crits it works fine.
+
+## Crit Msg (for complex crits)
+This uses the `@Damage` capability in the chat to force open the damage dialog which more gracefully and correctly handles dice pools. Alchemist's fire is a good example for something that isn't handled correctly by `Crit Roll`
 
 # How to install
 TODO -- package as an actual module ?

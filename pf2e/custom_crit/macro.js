@@ -402,8 +402,9 @@ new Dialog({
         const item = actor.items.get(itemId);
         const system = item.system;
 
-        // Clear existing crit dice rows
+        // Clear existing dice rows
         html.find(".dice-row").remove();
+        html.find(".other-row").remove();
         let formula = '';
         if (type === itemTypes.weapon) {
           const damage = system.damage;

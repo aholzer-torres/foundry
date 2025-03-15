@@ -1,12 +1,20 @@
 // Get the actor doing the dmg -- if no actor throw error
 if (!actor) {
-  ui.notifications.error("No actor selected.");
+  ui.notifications.error('No actor selected.');
   return;
 }
 
+// get the list of damager things
+let spells = [];
+let spellsByLevel = {};
+let weapons = [];
+let includeWorn = true;
+
+
+
 // Ensure someone is targetted ... frankly not using this for anything...
 if (canvas.tokens.controlled.length === 0) {
-  ui.notifications.error("No target selected.");
+  ui.notifications.error('No target selected.');
   return;
 }
 
@@ -17,9 +25,61 @@ const dmgDice = [4, 6, 8, 10, 12];
 const dmgTypes = CONFIG.PF2E.damageTypes;
 // Damage categories for special types of damage that need to be handled differently
 // These require the @Damage msg to the chat
-const dmgCategories = ['', "persistent", "precision", "splash"];
+const dmgCategories = ['', 'persistent', 'precision', 'splash'];
 
-const DamageRoll = CONFIG.Dice.rolls.find((r) => r.name === "DamageRoll");
+const DamageRoll = CONFIG.Dice.rolls.find((r) => r.name === 'DamageRoll');
+
+const itemTypes = {weapon: 'wpn', spell: 'spl'};
+
+
+/**
+ * Function to prepare the spells and weapons lists for use
+ **/
+const prepareSpellsWeapons = () => {
+  spells = [];
+  spellsByLevel = {};
+  weapons = [];
+
+  actor.items.forEach((item) => {
+    let add = false;
+    if (item.type === 'weapon') {
+      const carry = item.system.equipped.carryType;
+      if (carry === 'held') {
+        weapons.push(item);
+      } else if (includeWorn && carry === 'worn') {
+        weapons.push(item);
+      }
+    } else if (item.type === 'spell') {
+      const damage = item.system.damage;
+      if (typeof damage === "object" && damage !== null && Object.keys(damage).length > 0 ) {
+        spells.push(item);
+      }
+    }
+  });
+
+  // sort the weapons
+  weapons.sort((a, b) => a.system.slug.localeCompare(b.system.slug));
+
+  // sort the spells
+  spells.sort((a, b) => {
+    const la = a.system.level.value;
+    const lb = b.system.level.value;
+    return la === lb ? 
+    a.system.slug.localeCompare(b.system.slug) :
+    lb - la
+  });
+
+  spells.forEach((spell) => {
+    const lvl = spell.system.level.value;
+    if (!spellsByLevel[lvl]) {
+      spellsByLevel[lvl] = [];
+    }
+    spellsByLevel[lvl].push(spell);
+  });
+
+  console.log(weapons);
+  console.log(spellsByLevel);
+};
 
 /**
  * Create a row of dice. 
@@ -65,7 +125,7 @@ const critFormula = (crits, other, mods = []) => {
 
   // For each crit die row
   crits.forEach((diceRow) => {
-    let formula = "";
+    let formula = '';
 
     // Figure out if we have dice in the row. If we do then we add the max of the die as a constant to the roll
     if (diceRow.num && diceRow.die) {
@@ -92,7 +152,7 @@ const critFormula = (crits, other, mods = []) => {
 
   // Non crit damage
   other.forEach((diceRow) => {
-    let formula = "";
+    let formula = '';
     // Figure out the dice part
     if (diceRow.num && diceRow.die) {
       formula = `(${diceRow.num}d${diceRow.die}+${diceRow.mod})`;
@@ -120,7 +180,7 @@ const critFormula = (crits, other, mods = []) => {
   }
 
   // Create your dice pool
-  const finalFormula = formulae.join(",");
+  const finalFormula = formulae.join(',');
   console.log(finalFormula);
   return finalFormula;
 };
@@ -134,7 +194,7 @@ const damageChatRollOnce = (formula, msg) => {
     speaker: ChatMessage.getSpeaker({ actor: actor }),
     flavor: msg,
     type: CONST.CHAT_MESSAGE_TYPES.ROLL,
-    rollMode: game.settings.get("core", "rollMode"),
+    rollMode: game.settings.get('core', 'rollMode'),
   });
 };
 
@@ -166,6 +226,64 @@ const damageChatWithAt = (formula, msg) => {
   });
 }
 
+/**
+ * Create a dropdown for the items that do damage
+ **/
+const damagerDropdown = () => {
+  prepareSpellsWeapons();
+
+  // Create weapon options
+  let weaponOptions = weapons
+    .map((weapon) => `<option value="${itemTypes.weapon}-${weapon.id}">${weapon.name}</option>`)
+    .join("");
+
+  // Create spell options with level dividers
+  let spellOptions = "";
+  for (const level in spellsByLevel) {
+    spellOptions += `<option disabled>── Level ${level} ──</option>`;
+    spellOptions += spellsByLevel[level]
+      .map((spell) => `<option value="${itemTypes.spell}-${spell.id}">${spell.name}</option>`)
+      .join("");
+  }
+
+  // Construct dropdown
+  /* with spells
+  let dropdownHtml = `
+    <select id="damage-select" name="damage-select">
+      <option value="" selected></option>
+      <option disabled>──Weapons──</option>
+      ${weaponOptions}
+      <option disabled>──Spells──</option>
+      ${spellOptions}
+    </select>
+  `;
+  */
+
+  let dropdownHtml = `
+    <select id="damage-select" name="damage-select">
+      <option value="" selected></option>
+      <option disabled>──Weapons──</option>
+      ${weaponOptions}
+    </select>
+  `;
+
+  return dropdownHtml;
+};
+
+/**
+ * Add populated die row
+ **/
+const addPopulatedDiceRow = (html, rowType, num, die, type, mod, cat) => {
+  let diceRow = createRow(rowType);
+  html.find(`#${rowType}-rows`).append(diceRow);
+  html.find(`.${rowType}-row`).last().find('.num').val(num);
+  html.find(`.${rowType}-row`).last().find('.die').val(die);
+  html.find(`.${rowType}-row`).last().find('.damageType').val(type);
+  html.find(`.${rowType}-row`).last().find('.mod').val(mod);
+  html.find(`.${rowType}-row`).last().find('.damageCategory').val(cat);
+  return diceRow;
+};
+
 // Create the dialog
 new Dialog({
   title: "Crit Damage Roll",
@@ -184,10 +302,12 @@ new Dialog({
         color: white;
       }
     </style>
+    <div>
+    ${damagerDropdown()}
+    </div>
     <form id="crit-form">
       <div id="dice-rows">
         <label style="margin-right: 5px;">Crit Dice:</label>
-        ${createRow('dice')}
       </div>
       <button type="button" id="add-dice-row" style="width: 30px; margin-right: 5px;">+</button>
       <div id="other-rows">
@@ -246,7 +366,7 @@ new Dialog({
         // send the msg so that the it uses the damage dialog properly
         const formula = html.find('#formulaDisplay').val();
         const msg = html.find('#msg').val();
-			damageChatWithAt(formula, msg);
+        damageChatWithAt(formula, msg);
       }
     },
     cancel: {
@@ -275,44 +395,134 @@ new Dialog({
       updateFormula();
     });
 
-    function updateFormula() {
+    const updateDiceFromWeaponOrSpell = () => {
+      const selectedDamage = html.find("#damage-select").val();
+      if (selectedDamage) {
+        const [type, itemId] = selectedDamage.split("-");
+        const item = actor.items.get(itemId);
+        const system = item.system;
+
+        // Clear existing crit dice rows
+        html.find(".dice-row").remove();
+        let formula = '';
+        if (type === itemTypes.weapon) {
+          const damage = system.damage;
+          const splashDamage = system.splashDamage;
+          const bonusDamage = system.bonusDamage;
+          const runes = system.runes;
+
+          console.log('damage', damage);
+          console.log('splash', splashDamage);
+          console.log('bonus', bonusDamage);
+          console.log('runes', runes);
+
+          if (damage) {
+            // Handle damage
+            // Handle the striking runes custom rule
+            addPopulatedDiceRow(html, 
+                                'dice', 
+                                (runes ? damage.dice - runes.striking : damage.dice), 
+                                damage.die.split('d')[1], 
+                                damage.damageType, 
+                                0,
+                                '');
+
+            // Handle persistent damage
+            if (damage.persistent) {
+              addPopulatedDiceRow(html, 
+                                  'dice', 
+                                  0, 
+                                  damage.die.split('d')[1], 
+                                  damage.persistent.type,
+                                  damage.persistent.number,
+                                  'persistent');
+            }
+
+            // handle the striking runes custom rule
+            if (runes && runes?.striking > 0) {
+              addPopulatedDiceRow(html, 
+                                'other', 
+                                runes.striking, 
+                                damage.die.split('d')[1], 
+                                damage.damageType, 
+                                0,
+                                '');
+            }
+          }
+
+          // handle splash damage
+          if (splashDamage && splashDamage?.value > 0 && damage) {
+            addPopulatedDiceRow(html, 
+                                'dice', 
+                                0, 
+                                4, 
+                                damage.damageType, 
+                                splashDamage.value,
+                                'splash');
+          }
+
+          // handle bonus damage, whatever the hell that is ??
+          if (bonusDamage && bonusDamage?.value > 0 && damage) {
+            addPopulatedDiceRow(html, 
+                                'other', 
+                                bonusDamage?.dice, 
+                                bonusDamage?.die.split('d')[1], 
+                                damage.damageType, 
+                                0,
+                                '');
+          }
+        }
+
+        if (html.find("dice-row")) {
+          updateFormula();
+        }
+      }
+    };
+
+    const updateFormula = () => {
       const critDice = [];
-      html.find(".dice-row").each(function () {
-        const num = parseInt($(this).find(".num").val());
-        const die =  $(this).find(".die").val();
-        const type = $(this).find(".damageType").val();
-        const mod = parseInt($(this).find(".mod").val());
-        const category =  $(this).find(".damageCategory").val();
-        critDice.push({
-          cat: category,
-          die: die,
-          mod: mod,
-          num: num,
-          type: type,
+      const diceRows = html.find(".dice-row");
+      if(diceRows) {
+        diceRows.each(function () {
+          const num = parseInt($(this).find(".num").val());
+          const die =  $(this).find(".die").val();
+          const type = $(this).find(".damageType").val();
+          const mod = parseInt($(this).find(".mod").val());
+          const category =  $(this).find(".damageCategory").val();
+          critDice.push({
+            cat: category,
+            die: die,
+            mod: mod,
+            num: num,
+            type: type,
+          });
         });
-      });
+      }
 
       const otherDice = [];
-      html.find(".other-row").each(function () {
-        const num = parseInt($(this).find(".num").val());
-        const die = parseInt($(this).find(".die").val());
-        const type = $(this).find(".damageType").val();
-        const mod = parseInt($(this).find(".mod").val());
-        const category =  $(this).find(".damageCategory").val();
-        otherDice.push({
-          cat: category,
-          die: die,
-          mod: mod,
-          num: num,
-          type: type,
+      const otherRows = html.find(".other-row");
+      if (otherRows) {
+        otherRows.each(function () {
+          const num = parseInt($(this).find(".num").val());
+          const die = parseInt($(this).find(".die").val());
+          const type = $(this).find(".damageType").val();
+          const mod = parseInt($(this).find(".mod").val());
+          const category =  $(this).find(".damageCategory").val();
+          otherDice.push({
+            cat: category,
+            die: die,
+            mod: mod,
+            num: num,
+            type: type,
+          });
         });
-      });
+      }
 
       const stat = html.find("#stat").val() || "str";
       const includeStat = html.find("#includeStat").prop("checked");
       const statModifier = actor.system.abilities[stat].mod;
 
-      if (includeStat) {
+      if (includeStat && critDice.length > 0) {
         critDice[0].mod += statModifier;
       }
 
@@ -324,11 +534,13 @@ new Dialog({
       html.find("#formulaDisplay").val(formula);
     }
 
-    html.find("input, select, input[type='checkbox']").on("change", updateFormula);
+    html.find("#stat, .die, .damageType, .damageCategory , input[type='checkbox']").on("change", updateFormula);
+    html.find("#damage-select").on("change", updateDiceFromWeaponOrSpell);
     html
       .find("#dice-rows, #other-rows")
       .on("change", ".num, .die, .damageType, .mod, .damageCategory", updateFormula);
     html.find("#add-dice-row, #add-other-row").on("click", updateFormula);
+    html.find("#remove-dice-row, #remove-other-row").on("click", updateFormula);
     html.find("#remove-dice-row, #remove-other-row").on("click", updateFormula);
     updateFormula();
   },

@@ -397,14 +397,14 @@ new Dialog({
 
     const updateDiceFromWeaponOrSpell = () => {
       const selectedDamage = html.find("#damage-select").val();
+      // Clear existing dice rows
+      html.find(".dice-row").remove();
+      html.find(".other-row").remove();
       if (selectedDamage) {
         const [type, itemId] = selectedDamage.split("-");
         const item = actor.items.get(itemId);
         const system = item.system;
-
-        // Clear existing dice rows
-        html.find(".dice-row").remove();
-        html.find(".other-row").remove();
+        
         let formula = '';
         if (type === itemTypes.weapon) {
           const damage = system.damage;
@@ -418,6 +418,7 @@ new Dialog({
           console.log('runes', runes);
 
           if (damage) {
+            html.find('#msg').val(`${item.name.toUpperCase()} TO THE FACE!`);
             // Handle damage
             // Handle the striking runes custom rule
             addPopulatedDiceRow(html, 
@@ -477,7 +478,10 @@ new Dialog({
         if (html.find("dice-row")) {
           updateFormula();
         }
+      } else {
+        html.find('#msg').val(`TAKE THAT!`);
       }
+
     };
 
     const updateFormula = () => {

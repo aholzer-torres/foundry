@@ -4,14 +4,6 @@ if (!actor) {
   return;
 }
 
-// get the list of damager things
-let spells = [];
-let spellsByLevel = {};
-let weapons = [];
-let includeWorn = true;
-
-
-
 // Ensure someone is targetted ... frankly not using this for anything...
 if (canvas.tokens.controlled.length === 0) {
   ui.notifications.error('No target selected.');
@@ -27,15 +19,23 @@ const dmgTypes = CONFIG.PF2E.damageTypes;
 // These require the @Damage msg to the chat
 const dmgCategories = ['', 'persistent', 'precision', 'splash'];
 
-const DamageRoll = CONFIG.Dice.rolls.find((r) => r.name === 'DamageRoll');
-
+// These are the types of "items" that we both care about and find on the character sheet
+// These are the things that might be able to do damage
 const itemTypes = {weapon: 'wpn', spell: 'spl'};
 
+// These will comprise the list of things that do damage from the character sheet
+let spells = [];
+let spellsByLevel = {};
+let weapons = [];
+let includeWorn = true;
+
+// Import of the damage roller
+const DamageRoll = CONFIG.Dice.rolls.find((r) => r.name === 'DamageRoll');
 
 /**
  * Function to prepare the spells and weapons lists for use
  **/
-const prepareSpellsWeapons = () => {
+const retrieveSpellsWeapons = () => {
   spells = [];
   spellsByLevel = {};
   weapons = [];
@@ -186,22 +186,9 @@ const critFormula = (crits, other, mods = []) => {
 };
 
 /**
- * Function that rolls the die formula in one large dice pool
- */
-const damageChatRollOnce = (formula, msg) => {
-  const roll = new DamageRoll(formula, actor);          
-  roll.toMessage({
-    speaker: ChatMessage.getSpeaker({ actor: actor }),
-    flavor: msg,
-    type: CONST.CHAT_MESSAGE_TYPES.ROLL,
-    rollMode: game.settings.get('core', 'rollMode'),
-  });
-};
-
-/**
  * Function that rolls the die formula separating per line each dice pool
  */
-const damageChatRollMultiple = async (formula, msg) => {
+const damageChatRoll = async (formula, msg) => {
   const rolls = await Promise.all(
     formula.split(',')
            .map(r => new DamageRoll(r, actor.getRollData()).roll()));
@@ -230,7 +217,7 @@ const damageChatWithAt = (formula, msg) => {
  * Create a dropdown for the items that do damage
  **/
 const damagerDropdown = () => {
-  prepareSpellsWeapons();
+  retrieveSpellsWeapons();
 
   // Create weapon options
   let weaponOptions = weapons
@@ -271,10 +258,10 @@ const damagerDropdown = () => {
 };
 
 /**
- * Add populated die row
+ * Add a populated die row
  **/
 const addPopulatedDiceRow = (html, rowType, num, die, type, mod, cat) => {
-  let diceRow = createRow(rowType);
+  const diceRow = createRow(rowType);
   html.find(`#${rowType}-rows`).append(diceRow);
   html.find(`.${rowType}-row`).last().find('.num').val(num);
   html.find(`.${rowType}-row`).last().find('.die').val(die);
@@ -351,9 +338,7 @@ new Dialog({
         const msg = html.find('#msg').val();
 
         try {
-          // Commenting out as it doesn't behave the way we'd want
-          // damageChatRollOnce(formula, msg);
-          damageChatRollMultiple(formula, msg);
+          damageChatRoll(formula, msg);
         } catch (error) {
           ui.notifications.error("Invalid dice formula.");
           console.error(error);
@@ -404,8 +389,8 @@ new Dialog({
         const [type, itemId] = selectedDamage.split("-");
         const item = actor.items.get(itemId);
         const system = item.system;
-        
-        let formula = '';
+
+        // TODO use a switch/case statement here for clarity
         if (type === itemTypes.weapon) {
           const damage = system.damage;
           const splashDamage = system.splashDamage;
@@ -474,14 +459,10 @@ new Dialog({
                                 '');
           }
         }
-
-        if (html.find("dice-row")) {
-          updateFormula();
-        }
       } else {
         html.find('#msg').val(`TAKE THAT!`);
       }
-
+      updateFormula();
     };
 
     const updateFormula = () => {

@@ -396,23 +396,38 @@ new Dialog({
           const splashDamage = system.splashDamage;
           const bonusDamage = system.bonusDamage;
           const runes = system.runes;
+          const traits = system.traits.value;
 
           console.log('damage', damage);
           console.log('splash', splashDamage);
           console.log('bonus', bonusDamage);
           console.log('runes', runes);
+          console.log('traits', traits);
 
           if (damage) {
             html.find('#msg').val(`${item.name.toUpperCase()} TO THE FACE!`);
             // Handle damage
-            // Handle the striking runes custom rule
-            addPopulatedDiceRow(html, 
-                                'dice', 
-                                (runes ? damage.dice - runes.striking : damage.dice), 
-                                damage.die.split('d')[1], 
-                                damage.damageType, 
-                                0,
-                                '');
+            // check if it is deadly. if so we need to do something different
+            const deadlyTrait = traits.find((trait) => trait.startsWith('deadly-'));
+            if (deadlyTrait) {
+              // Handle the striking runes custom rule
+              addPopulatedDiceRow(html, 
+                                  'other', 
+                                  (runes ? damage.dice - runes.striking : damage.dice), 
+                                  deadlyTrait.split('-d')[1], 
+                                  damage.damageType, 
+                                  damage.die.split('d')[1],
+                                  ''); 
+            } else {
+              // Handle the striking runes custom rule
+              addPopulatedDiceRow(html, 
+                                  'dice', 
+                                  (runes ? damage.dice - runes.striking : damage.dice), 
+                                  damage.die.split('d')[1], 
+                                  damage.damageType, 
+                                  0,
+                                  '');  
+            }
 
             // Handle persistent damage
             if (damage.persistent) {

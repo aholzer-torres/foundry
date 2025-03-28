@@ -409,25 +409,26 @@ new Dialog({
             // Handle damage
             // check if it is deadly. if so we need to do something different
             const deadlyTrait = traits.find((trait) => trait.startsWith('deadly-'));
+            
+            // Handle the striking runes custom rule
+            addPopulatedDiceRow(html, 
+                                'dice', 
+                                (runes ? damage.dice - runes.striking : damage.dice), 
+                                damage.die.split('d')[1], 
+                                damage.damageType, 
+                                0,
+                                '');  
+          
             if (deadlyTrait) {
               // Handle the striking runes custom rule
               addPopulatedDiceRow(html, 
                                   'other', 
-                                  (runes ? damage.dice - runes.striking : damage.dice), 
+                                  (runes ? runes.striking : 1), 
                                   deadlyTrait.split('-d')[1], 
                                   damage.damageType, 
-                                  damage.die.split('d')[1],
-                                  ''); 
-            } else {
-              // Handle the striking runes custom rule
-              addPopulatedDiceRow(html, 
-                                  'dice', 
-                                  (runes ? damage.dice - runes.striking : damage.dice), 
-                                  damage.die.split('d')[1], 
-                                  damage.damageType, 
                                   0,
-                                  '');  
-            }
+                                  '');
+            } 
 
             // Handle persistent damage
             if (damage.persistent) {
